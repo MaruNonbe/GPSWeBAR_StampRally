@@ -126,7 +126,6 @@
 
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.1/aframe/build/aframe-ar.js"></script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyACib9absBqRW6ErBmjg4_jXcfq-CihVYE&callback=initMap" async defer></script>
 </head>
 
 <body>
@@ -513,6 +512,7 @@
   const DEVICE_ID = getDeviceId();
   const URL_ID = new URLSearchParams(location.search).get('id') || '';
   const LOG_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw_uhqYjG25qdhdrZ6zCZgjTCKPVypqmTcgKenXBtt4LSBCaoARHYSAYxtMEHijY1rSdA/exec';
+  const GOOGLE_MAPS_API_URL = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyACib9absBqRW6ErBmjg4_jXcfq-CihVYE';
 
   function sendLog(payload) {
     const data = Object.assign({ deviceId: DEVICE_ID, urlId: URL_ID, ts: Date.now() }, payload);
@@ -701,30 +701,60 @@
     });
   }
 
-  let map, marker, prevPos = null, totalDistance = 0, lastLogTime = 0;
+  let map, marker, prevPos = null, totalDistance = 0, lastLogTime = 0, gpsWatchStarted = false;
+
+  function loadGoogleMapsScript() {
+    if (window.google && window.google.maps) {
+      initMap();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = GOOGLE_MAPS_API_URL;
+    script.async = true;
+    script.defer = true;
+    script.onload = initMap;
+    script.onerror = () => {
+      console.warn('Google Maps failed to load. Starting GPS without map.');
+      startGPS();
+    };
+    document.head.appendChild(script);
+  }
 
   function initMap() {
-    map = new google.maps.Map(document.getElementById('map'), { 
+    if (!(window.google && window.google.maps)) {
+      startGPS();
+      return;
+    }
+
+    try {
+      map = new google.maps.Map(document.getElementById('map'), {
         center: { lat: 38.10, lng: 140.03 }, 
         zoom: 15, 
         disableDefaultUI: true 
-    });
-    marker = new google.maps.Marker({ map: map });
+      });
+      marker = new google.maps.Marker({ map: map });
 
     // 軌跡を描画するための線の初期設定
-    polyline = new google.maps.Polyline({
+      polyline = new google.maps.Polyline({
         path: pathCoordinates,
         geodesic: true,
         strokeColor: '#FF0000', // 線の色（赤）
         strokeOpacity: 1.0,
         strokeWeight: 3, // 線の太さ
         map: map
-    });
+      });
+    } catch (err) {
+      console.warn('Google Maps initialization failed. Starting GPS without map.', err);
+    }
 
     startGPS();
   }
 
   function startGPS() {
+    if (gpsWatchStarted) return;
+    gpsWatchStarted = true;
+
     navigator.geolocation.watchPosition(pos => {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
@@ -782,6 +812,7 @@
     updateDataSaverUI();
     updateStampUI();
     createARModels();
+    loadGoogleMapsScript();
     window.addEventListener('click', () => {
       const v = document.querySelector('video');
       if(v) v.play();
