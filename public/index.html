@@ -108,6 +108,30 @@
       color: #052e2b;
     }
 
+    #arrivalNotice {
+      position: fixed;
+      left: 50%;
+      top: 170px;
+      transform: translateX(-50%);
+      max-width: min(88vw, 420px);
+      padding: 10px 14px;
+      background: rgba(17, 24, 39, 0.86);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+      text-align: center;
+      z-index: 1300;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    #arrivalNotice.show {
+      opacity: 1;
+    }
+
     body.data-saver #map {
       display: none;
     }
@@ -153,6 +177,8 @@
 
   <button id="toggleBtn" onclick="toggleStamps()">🏆</button>
 
+  <div id="arrivalNotice"></div>
+
   <div id="stampStatus">
     <div style="font-weight:bold; border-bottom:1px solid #ccc; margin-bottom:8px; padding-bottom:5px; display: flex; justify-content: space-between;">
         <span>スタンプ帳</span>
@@ -169,8 +195,9 @@
     renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true"
     arjs="sourceType: webcam; debugUIEnabled: false; facingMode: environment;"
   >
-    <a-camera gps-camera rotation-reader></a-camera>
-    <a-entity id="plate-container"></a-entity>
+    <a-camera gps-camera rotation-reader>
+      <a-entity id="plate-container" position="0 0 -4"></a-entity>
+    </a-camera>
   </a-scene>
 
   <script>
@@ -431,6 +458,7 @@
   let isDataSaverMode = localStorage.getItem('data_saver_mode') === 'true';
 
   let userStamps = JSON.parse(localStorage.getItem('user_stamps')) || {};
+  let activePlaceId = '';
   let polyline; // 軌跡を表示する線
   let pathCoordinates = []; // 座標を保存する配列
 
@@ -532,6 +560,16 @@
       list.appendChild(item);
     });
     document.getElementById('stampCount').textContent = count;
+  }
+
+  function showArrivalNotice(place, isNewStamp) {
+    const notice = document.getElementById('arrivalNotice');
+    if (!notice) return;
+    const prefix = isNewStamp ? UI_TEXT.stampGet[currentLang] : '';
+    notice.textContent = `${prefix} ${getPlaceName(place)} ${UI_TEXT.arrived[currentLang]}`.trim();
+    notice.classList.add('show');
+    clearTimeout(showArrivalNotice.timer);
+    showArrivalNotice.timer = setTimeout(() => notice.classList.remove('show'), 3200);
   }
 
   function makeAFrameElement(tagName, attrs) {
@@ -650,12 +688,11 @@
 
   function showStoryPlate(place) {
     const container = document.getElementById('plate-container');
-    if (document.getElementById(`plate-${place.id}`)) return;
+    container.innerHTML = '';
 
     const group = document.createElement('a-entity');
     group.setAttribute('id', `plate-${place.id}`);
-    group.setAttribute('gps-entity-place', `latitude: ${place.lat}; longitude: ${place.lon};`);
-    group.setAttribute('look-at', '[gps-camera]');
+    group.setAttribute('position', '0 0 0');
 
     const plate = document.createElement('a-plane');
     plate.setAttribute('width', '4.4');
@@ -687,18 +724,35 @@
   }
 
   function checkStamps(lat, lon) {
+    let nearestPlace = null;
+    let nearestDistance = Infinity;
+
     PLACES.forEach(p => {
-      if (userStamps[p.id]) return;
-      const dist = getDistance(lat, lon, p.lat, p.lon) * 1000;
-      if (dist <= p.radius) {
-        userStamps[p.id] = true;
-        localStorage.setItem('user_stamps', JSON.stringify(userStamps));
-        updateStampUI();
-        showStoryPlate(p);
-        alert(`${UI_TEXT.stampGet[currentLang]}\n${getPlaceName(p)} ${UI_TEXT.arrived[currentLang]}`);
-        sendLog({ event: 'stamp_get', poiId: p.id, poiName: getPlaceName(p), lat, lon, lang: currentLang });
+      const distance = getDistance(lat, lon, p.lat, p.lon) * 1000;
+      if (distance <= p.radius && distance < nearestDistance) {
+        nearestPlace = p;
+        nearestDistance = distance;
       }
     });
+
+    if (!nearestPlace) {
+      activePlaceId = '';
+      return;
+    }
+
+    const isNewStamp = !userStamps[nearestPlace.id];
+    if (!isNewStamp && activePlaceId === nearestPlace.id) return;
+
+    activePlaceId = nearestPlace.id;
+    if (isNewStamp) {
+      userStamps[nearestPlace.id] = true;
+      localStorage.setItem('user_stamps', JSON.stringify(userStamps));
+      updateStampUI();
+      sendLog({ event: 'stamp_get', poiId: nearestPlace.id, poiName: getPlaceName(nearestPlace), lat, lon, lang: currentLang });
+    }
+
+    showStoryPlate(nearestPlace);
+    showArrivalNotice(nearestPlace, isNewStamp);
   }
 
   let map, marker, prevPos = null, totalDistance = 0, lastLogTime = 0, gpsWatchStarted = false;
@@ -811,7 +865,6 @@
     updateLanguageButtons();
     updateDataSaverUI();
     updateStampUI();
-    createARModels();
     loadGoogleMapsScript();
     window.addEventListener('click', () => {
       const v = document.querySelector('video');
