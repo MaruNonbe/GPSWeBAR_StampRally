@@ -55,6 +55,19 @@
     .stamp-item { margin-bottom: 6px; color: #333; border-bottom: 1px solid #eee; padding-bottom: 4px; }
     .stamp-item.got { color: #e91e63; font-weight: bold; }
 
+    #clearStampsBtn {
+      width: 100%;
+      margin: 8px 0;
+      padding: 7px 8px;
+      border: 1px solid #e91e63;
+      border-radius: 6px;
+      background: #fff;
+      color: #e91e63;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
     #languagePanel {
       position: fixed;
       top: 78px;
@@ -184,6 +197,7 @@
         <span>スタンプ帳</span>
         <span onclick="toggleStamps()" style="cursor:pointer; color:#999;">✕</span>
     </div>
+    <button id="clearStampsBtn" onclick="clearStamps()">スタンプをクリア</button>
     <div id="stampList"></div>
   </div>
 
@@ -358,6 +372,18 @@
       en: 'Data Saver OFF',
       zh: '省流量 OFF',
       ko: '데이터 절약 OFF'
+    },
+    clearStamps: {
+      ja: 'スタンプをクリア',
+      en: 'Clear stamps',
+      zh: '清除印章',
+      ko: '스탬프 지우기'
+    },
+    stampsCleared: {
+      ja: 'スタンプをクリアしました',
+      en: 'Stamps cleared',
+      zh: '已清除印章',
+      ko: '스탬프를 지웠습니다'
     }
   };
 
@@ -459,6 +485,7 @@
 
   let userStamps = JSON.parse(localStorage.getItem('user_stamps')) || {};
   let activePlaceId = '';
+  let clearedPlaceId = '';
   let polyline; // 軌跡を表示する線
   let pathCoordinates = []; // 座標を保存する配列
 
@@ -487,6 +514,7 @@
     localStorage.setItem('display_lang', currentLang);
     updateLanguageButtons();
     updateDataSaverUI();
+    updateClearStampsButtonUI();
     updateStampUI();
     refreshStoryPlates();
   }
@@ -522,6 +550,12 @@
     if (!btn) return;
     btn.classList.toggle('active', isDataSaverMode);
     btn.textContent = isDataSaverMode ? UI_TEXT.dataSaverOn[currentLang] : UI_TEXT.dataSaverOff[currentLang];
+  }
+
+  function updateClearStampsButtonUI() {
+    const btn = document.getElementById('clearStampsBtn');
+    if (!btn) return;
+    btn.textContent = UI_TEXT.clearStamps[currentLang];
   }
 
   function getPositionLogInterval() {
@@ -560,6 +594,24 @@
       list.appendChild(item);
     });
     document.getElementById('stampCount').textContent = count;
+  }
+
+  function clearStamps() {
+    clearedPlaceId = activePlaceId;
+    userStamps = {};
+    activePlaceId = '';
+    localStorage.removeItem('user_stamps');
+    updateStampUI();
+
+    const container = document.getElementById('plate-container');
+    if (container) container.innerHTML = '';
+
+    const notice = document.getElementById('arrivalNotice');
+    if (!notice) return;
+    notice.textContent = UI_TEXT.stampsCleared[currentLang];
+    notice.classList.add('show');
+    clearTimeout(showArrivalNotice.timer);
+    showArrivalNotice.timer = setTimeout(() => notice.classList.remove('show'), 2400);
   }
 
   function showArrivalNotice(place, isNewStamp) {
@@ -737,8 +789,11 @@
 
     if (!nearestPlace) {
       activePlaceId = '';
+      clearedPlaceId = '';
       return;
     }
+
+    if (clearedPlaceId === nearestPlace.id) return;
 
     const isNewStamp = !userStamps[nearestPlace.id];
     if (!isNewStamp && activePlaceId === nearestPlace.id) return;
@@ -864,6 +919,7 @@
     document.getElementById('urlId').textContent = URL_ID || '-';
     updateLanguageButtons();
     updateDataSaverUI();
+    updateClearStampsButtonUI();
     updateStampUI();
     loadGoogleMapsScript();
     window.addEventListener('click', () => {
