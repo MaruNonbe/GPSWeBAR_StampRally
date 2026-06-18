@@ -175,7 +175,7 @@
     </div>
     <div style="text-align: right; font-size: 16px;">
       スタンプ<br>
-      <span id="stampCount" style="font-weight: bold; color: #ffeb3b;">0</span> / 11
+      <span id="stampCount" style="font-weight: bold; color: #ffeb3b;">0</span> / <span id="stampTotal">10</span>
     </div>
   </div>
 
@@ -321,16 +321,6 @@
         en:'KURUNTO is a play and learning exchange facility with a library, indoor play area, child-care support, and cafe.\nIts cocoon-inspired building welcomes everyone from children to adults.',
         zh:'KURUNTO 是集图书馆、室内游乐场、育儿支援和咖啡馆于一体的游学交流设施。\n以蚕茧为灵感的建筑，欢迎儿童到大人共同聚集。',
         ko:'구룬토는 도서관, 실내 놀이공간, 육아 지원, 카페를 갖춘 놀이와 배움의 교류 시설입니다.\n고치를 떠올리게 하는 건물에 어린이부터 어른까지 모입니다.'
-      }
-    },
-    {
-      id:'MyHome', lat:38.10011158734515, lon:140.0225346622888, radius:30, model:'./Index/3DModel/MyHome.glb',
-      name:{ ja:'MyHome', en:'MyHome', zh:'MyHome', ko:'MyHome' },
-      desc:{
-        ja:'今日のスタンプラリーを振り返る場所です。\n歩いた道、出会った景色、集めた情報を自分の物語として整理しましょう。',
-        en:'This is a place to look back on today’s stamp rally.\nReview the paths you walked, the scenes you found, and the information you collected as your own story.',
-        zh:'这里是回顾今天集章之旅的地点。\n把走过的路、遇见的风景和收集的信息，整理成自己的故事吧。',
-        ko:'오늘의 스탬프 랠리를 돌아보는 장소입니다.\n걸어온 길, 만난 풍경, 모은 정보를 나만의 이야기로 정리해 보세요.'
       }
     }
   ];
@@ -594,6 +584,8 @@
       list.appendChild(item);
     });
     document.getElementById('stampCount').textContent = count;
+    const total = document.getElementById('stampTotal');
+    if (total) total.textContent = PLACES.length;
   }
 
   function clearStamps() {
@@ -775,13 +767,14 @@
     container.appendChild(group);
   }
 
-  function checkStamps(lat, lon) {
+  function checkStamps(lat, lon, accuracy = 0) {
     let nearestPlace = null;
     let nearestDistance = Infinity;
+    const accuracyBuffer = Math.min(Math.max(accuracy, 0), 30);
 
     PLACES.forEach(p => {
       const distance = getDistance(lat, lon, p.lat, p.lon) * 1000;
-      if (distance <= p.radius && distance < nearestDistance) {
+      if (distance <= p.radius + accuracyBuffer && distance < nearestDistance) {
         nearestPlace = p;
         nearestDistance = distance;
       }
@@ -882,7 +875,7 @@
         map.setCenter(newPos);
       }
 
-      checkStamps(lat, lon);
+      checkStamps(lat, lon, pos.coords.accuracy || 0);
 
       if (prevPos) {
         const d = getDistance(prevPos.lat, prevPos.lng, lat, lon);
@@ -921,6 +914,7 @@
     updateDataSaverUI();
     updateClearStampsButtonUI();
     updateStampUI();
+    startGPS();
     loadGoogleMapsScript();
     window.addEventListener('click', () => {
       const v = document.querySelector('video');
