@@ -852,26 +852,26 @@
     group.setAttribute('position', '0 0 0');
 
     const plate = document.createElement('a-plane');
-    plate.setAttribute('width', '4.4');
-    plate.setAttribute('height', QUIZZES[place.id] ? '3.4' : '2.9');
-    plate.setAttribute('material', 'color: #111827; opacity: 0.68; transparent: true; side: double');
-    plate.setAttribute('position', '0 0.6 0');
+    plate.setAttribute('width', '3.6');
+    plate.setAttribute('height', QUIZZES[place.id] ? '2.7' : '2.25');
+    plate.setAttribute('material', 'color: #111827; opacity: 0.38; transparent: true; side: double');
+    plate.setAttribute('position', '0 0.25 0');
 
     const title = document.createElement('a-text');
     title.setAttribute('value', getPlaceName(place));
     title.setAttribute('align', 'center');
-    title.setAttribute('width', '4');
+    title.setAttribute('width', '3.35');
     title.setAttribute('color', '#ffe08a');
-    title.setAttribute('position', QUIZZES[place.id] ? '0 1.6 0.02' : '0 1.35 0.02');
+    title.setAttribute('position', QUIZZES[place.id] ? '0 1.35 0.02' : '0 1.05 0.02');
 
     const text = document.createElement('a-text');
     text.setAttribute('value', `${getPlaceDesc(place)}${getPlaceQuizText(place)}`);
     text.setAttribute('align', 'center');
-    text.setAttribute('width', '3.9');
-    text.setAttribute('wrap-count', currentLang === 'en' ? '28' : '23');
+    text.setAttribute('width', '3.25');
+    text.setAttribute('wrap-count', currentLang === 'en' ? '30' : '24');
     text.setAttribute('color', '#fff');
-    text.setAttribute('position', QUIZZES[place.id] ? '0 -1.5 0.02' : '0 -1.15 0.02');
-    text.setAttribute('animation', 'property: position; to: 0 0.05 0.02; dur: 4200; easing: easeOutCubic');
+    text.setAttribute('position', QUIZZES[place.id] ? '0 -1.25 0.02' : '0 -0.9 0.02');
+    text.setAttribute('animation', 'property: position; to: 0 -0.02 0.02; dur: 4200; easing: easeOutCubic');
 
     group.appendChild(plate);
     group.appendChild(title);
