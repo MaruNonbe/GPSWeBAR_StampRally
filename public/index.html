@@ -121,6 +121,56 @@
       color: #052e2b;
     }
 
+    #gpsEvalBtn {
+      position: fixed;
+      top: 164px;
+      left: 10px;
+      min-width: 128px;
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 8px;
+      background: rgba(17, 24, 39, 0.76);
+      color: #fff;
+      font-size: 12px;
+      font-weight: bold;
+      z-index: 1200;
+      cursor: pointer;
+    }
+
+    #gpsEvalPanel {
+      position: fixed;
+      top: 204px;
+      left: 10px;
+      width: min(92vw, 360px);
+      max-height: calc(70vh - 40px);
+      overflow-y: auto;
+      background: rgba(255,255,255,0.96);
+      color: #222;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      z-index: 1300;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+      display: none;
+      font-size: 12px;
+    }
+
+    .gps-eval-row {
+      border-top: 1px solid #eee;
+      padding: 8px 0;
+    }
+
+    .gps-eval-ok {
+      color: #0f766e;
+      font-weight: bold;
+    }
+
+    .gps-eval-ng {
+      color: #b91c1c;
+      font-weight: bold;
+    }
+
     #arrivalNotice {
       position: fixed;
       left: 50%;
@@ -188,9 +238,20 @@
 
   <button id="dataSaverBtn" onclick="toggleDataSaver()">省通信 OFF</button>
 
+  <button id="gpsEvalBtn" onclick="toggleGpsEvaluation()">GPS評価</button>
+
   <button id="toggleBtn" onclick="toggleStamps()">🏆</button>
 
   <div id="arrivalNotice"></div>
+
+  <div id="gpsEvalPanel">
+    <div style="font-weight:bold; border-bottom:1px solid #ccc; padding-bottom:6px; margin-bottom:8px; display:flex; justify-content:space-between;">
+      <span>GPS到着判定評価</span>
+      <span onclick="toggleGpsEvaluation()" style="cursor:pointer; color:#999;">✕</span>
+    </div>
+    <div id="gpsEvalSummary" style="margin-bottom:8px;">GPS取得待ちです。</div>
+    <div id="gpsEvalList"></div>
+  </div>
 
   <div id="stampStatus">
     <div style="font-weight:bold; border-bottom:1px solid #ccc; margin-bottom:8px; padding-bottom:5px; display: flex; justify-content: space-between;">
@@ -220,6 +281,12 @@
   function toggleStamps() {
     const statusDiv = document.getElementById('stampStatus');
     statusDiv.style.display = (statusDiv.style.display === 'none' || statusDiv.style.display === '') ? 'block' : 'none';
+  }
+
+  function toggleGpsEvaluation() {
+    const panel = document.getElementById('gpsEvalPanel');
+    panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
+    if (panel.style.display === 'block') updateGpsEvaluationUI();
   }
 
   const PLACES = [
@@ -476,6 +543,7 @@
   let userStamps = JSON.parse(localStorage.getItem('user_stamps')) || {};
   let activePlaceId = '';
   let clearedPlaceId = '';
+  let lastGpsPosition = null;
   let polyline; // 軌跡を表示する線
   let pathCoordinates = []; // 座標を保存する配列
 
@@ -550,6 +618,51 @@
 
   function getPositionLogInterval() {
     return isDataSaverMode ? 60000 : 10000;
+  }
+
+  function formatMeters(value) {
+    if (!Number.isFinite(value)) return '-';
+    return value >= 1000 ? `${(value / 1000).toFixed(2)}km` : `${value.toFixed(1)}m`;
+  }
+
+  function getEffectiveRadius(place, accuracy = 0) {
+    return place.radius + Math.min(Math.max(accuracy, 0), 30);
+  }
+
+  function updateGpsEvaluationUI() {
+    const summary = document.getElementById('gpsEvalSummary');
+    const list = document.getElementById('gpsEvalList');
+    if (!summary || !list) return;
+
+    if (!lastGpsPosition) {
+      summary.textContent = 'GPS取得待ちです。位置情報を許可してください。';
+      list.innerHTML = '';
+      return;
+    }
+
+    const rows = PLACES.map(place => {
+      const distance = getDistance(lastGpsPosition.lat, lastGpsPosition.lon, place.lat, place.lon) * 1000;
+      const effectiveRadius = getEffectiveRadius(place, lastGpsPosition.accuracy);
+      return { place, distance, effectiveRadius, canDisplay: distance <= effectiveRadius };
+    }).sort((a, b) => a.distance - b.distance);
+
+    const nearest = rows[0];
+    const displayable = rows.filter(row => row.canDisplay);
+    summary.innerHTML =
+      `現在地: ${lastGpsPosition.lat.toFixed(6)}, ${lastGpsPosition.lon.toFixed(6)}<br>` +
+      `GPS精度: ±${formatMeters(lastGpsPosition.accuracy)}<br>` +
+      `最寄り: ${getPlaceName(nearest.place)} (${formatMeters(nearest.distance)})<br>` +
+      `表示対象: ${displayable.length ? displayable.map(row => getPlaceName(row.place)).join('、') : 'なし'}`;
+
+    list.innerHTML = rows.map(row => {
+      const statusClass = row.canDisplay ? 'gps-eval-ok' : 'gps-eval-ng';
+      const statusText = row.canDisplay ? '表示されます' : '範囲外';
+      return `<div class="gps-eval-row">
+        <div><strong>${getPlaceName(row.place)}</strong></div>
+        <div>距離: ${formatMeters(row.distance)} / 判定: ${formatMeters(row.effectiveRadius)}</div>
+        <div class="${statusClass}">${statusText}</div>
+      </div>`;
+    }).join('');
   }
 
   function getDeviceId() {
@@ -770,11 +883,10 @@
   function checkStamps(lat, lon, accuracy = 0) {
     let nearestPlace = null;
     let nearestDistance = Infinity;
-    const accuracyBuffer = Math.min(Math.max(accuracy, 0), 30);
 
     PLACES.forEach(p => {
       const distance = getDistance(lat, lon, p.lat, p.lon) * 1000;
-      if (distance <= p.radius + accuracyBuffer && distance < nearestDistance) {
+      if (distance <= getEffectiveRadius(p, accuracy) && distance < nearestDistance) {
         nearestPlace = p;
         nearestDistance = distance;
       }
@@ -860,6 +972,8 @@
     navigator.geolocation.watchPosition(pos => {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy || 0;
+      lastGpsPosition = { lat, lon, accuracy };
       document.getElementById('lat').textContent = lat.toFixed(5);
       document.getElementById('lon').textContent = lon.toFixed(5);
 
@@ -875,7 +989,8 @@
         map.setCenter(newPos);
       }
 
-      checkStamps(lat, lon, pos.coords.accuracy || 0);
+      checkStamps(lat, lon, accuracy);
+      if (document.getElementById('gpsEvalPanel').style.display === 'block') updateGpsEvaluationUI();
 
       if (prevPos) {
         const d = getDistance(prevPos.lat, prevPos.lng, lat, lon);
@@ -890,7 +1005,11 @@
         sendLog({ event: 'position', lat, lon, distance_km: totalDistance, dataSaver: isDataSaverMode });
         lastLogTime = Date.now();
       }
-    }, err => console.warn(err), { enableHighAccuracy: true });
+    }, err => {
+      console.warn(err);
+      const summary = document.getElementById('gpsEvalSummary');
+      if (summary) summary.textContent = `GPS取得エラー: ${err.message || err.code}`;
+    }, { enableHighAccuracy: true });
   }
 
   function getDistance(lat1, lon1, lat2, lon2) {
