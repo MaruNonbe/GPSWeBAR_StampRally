@@ -851,12 +851,6 @@
     group.setAttribute('id', `plate-${place.id}`);
     group.setAttribute('position', '0 0 0');
 
-    const plate = document.createElement('a-plane');
-    plate.setAttribute('width', '2.8');
-    plate.setAttribute('height', QUIZZES[place.id] ? '2.15' : '1.75');
-    plate.setAttribute('material', 'color: #111827; opacity: 0.2; transparent: true; side: double');
-    plate.setAttribute('position', '0 0.12 0');
-
     const title = document.createElement('a-text');
     title.setAttribute('value', getPlaceName(place));
     title.setAttribute('align', 'center');
@@ -873,7 +867,6 @@
     text.setAttribute('position', QUIZZES[place.id] ? '0 -1.0 0.02' : '0 -0.68 0.02');
     text.setAttribute('animation', 'property: position; to: 0 -0.08 0.02; dur: 4200; easing: easeOutCubic');
 
-    group.appendChild(plate);
     group.appendChild(title);
     group.appendChild(text);
     if (place.id === 'michinoeki') addOtterDrummer(group);
